@@ -1,0 +1,31 @@
+# Source files
+.vscode/**
+src/**
+tsconfig.json
+.eslintrc.js
+.gitignore
+
+# Build artifacts
+*.vsix
+
+# Test files
+test-workspace/**
+TESTING.md
+
+# Documentation (keep README, CHANGELOG, LICENSE)
+PRE_PUBLISH_CHECKLIST.md
+PUBLISH_READY_REPORT.md
+EXTENSION_PUBLISH_REVIEW.md
+
+# Build scripts (keep bundled server)
+build-scripts/**
+
+# Node modules (will be bundled by vsce)
+node_modules/**/.bin/**
+node_modules/**/test/**
+node_modules/**/tests/**
+node_modules/**/*.md
+node_modules/**/*.map
+
+# Keep the bundled server directory
+!server/**

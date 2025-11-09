@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <!-- Disable certain rules for test projects -->
+    <NoWarn>$(NoWarn);CA1707</NoWarn> <!-- Allow underscores in test method names -->
+  </PropertyGroup>
+</Project>

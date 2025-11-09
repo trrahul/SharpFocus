@@ -1,0 +1,194 @@
+{
+  "name": "sharpfocus",
+  "displayName": "SharpFocus",
+  "description": "Information Flow Analysis for C# — See what your code really does with intelligent dataflow highlighting",
+  "version": "0.1.0",
+  "publisher": "RahulTR",
+  "license": "MIT",
+  "icon": "icon.png",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Other"
+  ],
+  "keywords": [
+    "csharp",
+    "c#",
+    "roslyn",
+    "dataflow",
+    "analysis",
+    "slicing",
+    "program-slicing",
+    "information-flow",
+    "static-analysis",
+    "debugging",
+    "refactoring"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/trrahul/SharpFocus.git"
+  },
+  "homepage": "https://github.com/trrahul/SharpFocus#readme",
+  "bugs": {
+    "url": "https://github.com/trrahul/SharpFocus/issues"
+  },
+  "galleryBanner": {
+    "color": "#1e1e1e",
+    "theme": "dark"
+  },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "sharpfocus.toggleMode",
+        "title": "SharpFocus: Toggle Analysis Mode"
+      },
+      {
+        "command": "sharpfocus.clearHighlights",
+        "title": "SharpFocus: Clear Highlights"
+      },
+      {
+        "command": "sharpfocus.showFlowDetails",
+        "title": "SharpFocus: Show Flow Details"
+      },
+      {
+        "command": "sharpfocus.navigateNext",
+        "title": "SharpFocus: Navigate to Next Location",
+        "icon": "$(arrow-down)"
+      },
+      {
+        "command": "sharpfocus.navigatePrevious",
+        "title": "SharpFocus: Navigate to Previous Location",
+        "icon": "$(arrow-up)"
+      },
+      {
+        "command": "sharpfocus.navigateToLocation",
+        "title": "SharpFocus: Navigate to Location"
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "sharpfocus.flowTree",
+          "name": "SharpFocus Flow",
+          "icon": "resources/sharpfocus-icon.svg",
+          "contextualTitle": "SharpFocus Flow Navigation"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "sharpfocus.navigatePrevious",
+          "when": "view == sharpfocus.flowTree",
+          "group": "navigation@1"
+        },
+        {
+          "command": "sharpfocus.navigateNext",
+          "when": "view == sharpfocus.flowTree",
+          "group": "navigation@2"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "sharpfocus.flowTree",
+        "contents": "No flow analysis active.\n\nTo start:\n1. Open a C# file\n2. Click on a variable, field, or parameter\n3. Flow locations will appear here\n\n[Learn More](https://github.com/trrahul/SharpFocus)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "sharpfocus.navigateNext",
+        "key": "ctrl+alt+n",
+        "mac": "cmd+alt+n",
+        "when": "editorTextFocus && editorLangId == csharp"
+      },
+      {
+        "command": "sharpfocus.navigatePrevious",
+        "key": "ctrl+alt+p",
+        "mac": "cmd+alt+p",
+        "when": "editorTextFocus && editorLangId == csharp"
+      }
+    ],
+    "configuration": {
+      "title": "SharpFocus",
+      "properties": {
+        "sharpfocus.serverPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to SharpFocus.LanguageServer.dll. If empty, will try to find it automatically."
+        },
+        "sharpfocus.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Traces the communication between VS Code and the SharpFocus language server."
+        },
+        "sharpfocus.analysisMode": {
+          "type": "string",
+          "enum": [
+            "focus",
+            "off"
+          ],
+          "default": "focus",
+          "enumDescriptions": [
+            "Focus Mode: Fades out code not related to your selection (simple, intuitive)",
+            "Off: Manual triggering only"
+          ],
+          "description": "Choose how SharpFocus highlights code when you click on a variable."
+        },
+        "sharpfocus.ui.disableWordHighlight": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically disable VS Code's native word highlighting to avoid conflicts with SharpFocus."
+        },
+        "sharpfocus.displayMode": {
+          "type": "string",
+          "enum": [
+            "normal",
+            "advanced"
+          ],
+          "default": "normal",
+          "enumDescriptions": [
+            "Normal: Flowistry-style fading with minimal highlights",
+            "Advanced: Colored relations, gutter icons, and detailed styling"
+          ],
+          "description": "Choose how SharpFocus renders focus mode results in the editor."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run bundle",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts",
+    "bundle": "npm run compile && npm run bundle-server",
+    "bundle-server": "pwsh -ExecutionPolicy Bypass -File ./build-scripts/bundle-server.ps1 -Configuration Release -Runtime win-x64",
+    "bundle-all": "npm run compile && pwsh -ExecutionPolicy Bypass -File ./build-scripts/bundle-all-platforms.ps1 -Configuration Release",
+    "package": "npm run bundle && vsce package",
+    "package-all": "npm run bundle-all && vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.80.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "sharp": "^0.34.5",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.0"
+  }
+}
