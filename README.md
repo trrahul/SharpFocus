@@ -21,6 +21,11 @@ SharpFocus implements **program slicing** — a static analysis technique that a
 
 By combining both directions, SharpFocus creates a **focus mode** that highlights only the relevant code paths, fading everything else away. Perfect for debugging, refactoring, and code review.
 
+**Learn More:**
+- [Part 1: Understanding Code Through Data Flow](https://www.rahultr.dev/posts/part1-getting-started/) — Introduction to program slicing and the dependency problem
+- [Part 2: The Analysis Engine](https://www.rahultr.dev/posts/part2-core-technology/) — How the dataflow analysis works under the hood
+- [Part 3: Advanced Analysis Techniques](https://www.rahultr.dev/posts/part3-advanced-concepts/) — Transfer functions, soundness vs precision, and performance
+
 ---
 
 ## Features
