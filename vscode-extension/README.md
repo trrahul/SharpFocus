@@ -8,7 +8,7 @@
 
 SharpFocus is a Visual Studio Code extension that brings information-flow analysis to C#. Inspired by [Flowistry](https://github.com/willcrichton/flowistry) for Rust, it uses program slicing to help developers understand data dependencies and code relationships at a glance.
 
-![SharpFocus Demo](images/advanced-mode-2.png)
+![SharpFocus Demo](https://raw.githubusercontent.com/trrahul/SharpFocus/main/vscode-extension/images/advanced-mode-2.png)
 
 ---
 
@@ -30,11 +30,11 @@ Click any variable, parameter, or field and see the complete dataflow instantly.
 
 **Normal Mode**
 
-![Normal Mode](images/normal-mode.png)
+![Normal Mode](https://raw.githubusercontent.com/trrahul/SharpFocus/main/vscode-extension/images/normal-mode.png)
 
 **Advanced Mode** - Detailed flow indicators with colored relations and gutter icons:
 
-![Advanced Mode](images/advanced-mode.png)
+![Advanced Mode](https://raw.githubusercontent.com/trrahul/SharpFocus/main/vscode-extension/images/advanced-mode.png)
 
 ### Navigation
 Navigate through your code's dataflow with keyboard shortcuts and visual aids:
@@ -45,19 +45,19 @@ Navigate through your code's dataflow with keyboard shortcuts and visual aids:
 
 **Tree View** shows all flow locations organized by type:
 
-![Tree View](images/tree.png)
+![Tree View](https://raw.githubusercontent.com/trrahul/SharpFocus/main/vscode-extension/images/tree.png)
 
 **Complete View** with both code highlighting and tree navigation:
 
-![Advanced Mode with Tree](images/advanced-mode-with-tree.png)
+![Advanced Mode with Tree](https://raw.githubusercontent.com/trrahul/SharpFocus/main/vscode-extension/images/advanced-mode-with-tree.png)
 
 **Normal Mode with Tree** for a cleaner look:
 
-![Normal Mode with Tree](images/normal-mode-with-tree.png)
+![Normal Mode with Tree](https://raw.githubusercontent.com/trrahul/SharpFocus/main/vscode-extension/images/normal-mode-with-tree.png)
 
 ### Settings
 
-![Settings](images/settings.png)
+![Settings](https://raw.githubusercontent.com/trrahul/SharpFocus/main/vscode-extension/images/settings.png)
 
 - **Analysis Mode:** Focus on click, or manual trigger
 - **Display Mode:** Normal (minimalist) or Advanced (detailed)
