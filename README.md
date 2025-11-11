@@ -1,7 +1,7 @@
 # SharpFocus
 
 [![VS Code Marketplace](https://img.shields.io/badge/VS%20Code-Marketplace-blue)](https://marketplace.visualstudio.com/items?itemName=RahulTR.sharpfocus)
-[![JetBrains Marketplace](https://img.shields.io/badge/Rider-Marketplace-orange)](https://plugins.jetbrains.com/)
+[![JetBrains Marketplace](https://img.shields.io/badge/Rider-Marketplace-orange)]([https://plugins.jetbrains.com/](https://plugins.jetbrains.com/plugin/28984-sharpfocus))
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-10.0-purple)](https://dotnet.microsoft.com/)
 
