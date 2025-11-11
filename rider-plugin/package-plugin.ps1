@@ -63,23 +63,9 @@ if ($Clean) {
     Write-Host ""
 }
 
-# Build language server for all platforms
-Write-Host "🔨 Building language server for all platforms..." -ForegroundColor Yellow
-Write-Host "   This includes: Windows (x64, arm64), Linux (x64, arm64), macOS (x64, arm64)" -ForegroundColor Gray
-
-$buildScript = Join-Path $PSScriptRoot "build-scripts\bundle-server.ps1"
-& $buildScript -Configuration Release
-
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "❌ Language server build failed" -ForegroundColor Red
-    exit 1
-}
-
-Write-Host "✓ Language server bundled for all platforms" -ForegroundColor Green
-Write-Host ""
-
-# Build plugin
+# Build plugin (Gradle will automatically build the language server via bundleLanguageServer task)
 Write-Host "📦 Building plugin distribution..." -ForegroundColor Yellow
+Write-Host "   (Language server will be built automatically for all platforms)" -ForegroundColor Gray
 
 $gradleArgs = @("buildPlugin")
 if ($SkipTests) {
@@ -157,28 +143,3 @@ try {
     Write-Host "   ⚠ Could not verify package contents: $_" -ForegroundColor Yellow
 }
 
-Write-Host ""
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "Next Steps:" -ForegroundColor Cyan
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "1. Test the plugin locally:" -ForegroundColor White
-Write-Host "   - Open Rider → Settings → Plugins" -ForegroundColor Gray
-Write-Host "   - Click ⚙️ → Install Plugin from Disk" -ForegroundColor Gray
-Write-Host "   - Select: $zipPath" -ForegroundColor Gray
-Write-Host ""
-Write-Host "2. Upload to JetBrains Marketplace:" -ForegroundColor White
-Write-Host "   - Go to: https://plugins.jetbrains.com/" -ForegroundColor Gray
-Write-Host "   - Sign in and click 'Upload Plugin'" -ForegroundColor Gray
-Write-Host "   - Upload: $zipPath" -ForegroundColor Gray
-Write-Host "   - Add screenshots from: rider-plugin\images\" -ForegroundColor Gray
-Write-Host "   - Submit for review" -ForegroundColor Gray
-Write-Host ""
-Write-Host "📸 Screenshots available:" -ForegroundColor Cyan
-$imagesDir = Join-Path $PSScriptRoot "images"
-if (Test-Path $imagesDir) {
-    Get-ChildItem -Path $imagesDir -Filter "*.png" | ForEach-Object {
-        Write-Host "   - $($_.Name)" -ForegroundColor Gray
-    }
-}
-Write-Host ""
-Write-Host "🚀 Ready to publish!" -ForegroundColor Green
