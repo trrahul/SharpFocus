@@ -9,7 +9,7 @@
 
 SharpFocus brings information-flow analysis to VS Code and JetBrains Rider. Inspired by [Flowistry](https://github.com/willcrichton/flowistry) for Rust, it uses program slicing to help developers understand data dependencies and code relationships at a glance.
 
-![SharpFocus Demo](vscode-extension/images/advanced-mode-2.png)
+![SharpFocus Before and After](images/before-and-after.png)
 
 ---
 
@@ -34,7 +34,25 @@ By combining both directions, SharpFocus creates a **focus mode** that highlight
 ### Focus Mode
 Click any variable, parameter, or field and see the complete dataflow instantly. Everything else fades away.
 
-**Normal Mode**
+**VS Code:**
+
+![VS Code Before](images/before-vscode.png)
+*Before:*
+
+![VS Code After](images/after-vscode.png)
+*After:*
+
+**JetBrains Rider:**
+
+![Rider Before](images/Rider-before.png)
+*Before: Full code visibility*
+
+![Rider After](images/Rider-after.png)
+*After: Focus mode with CodeVision hints*
+
+### Display Modes
+
+**Normal Mode** - Clean, minimalist Flowistry-style interface:
 
 ![Normal Mode](vscode-extension/images/normal-mode.png)
 
