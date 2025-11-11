@@ -107,7 +107,7 @@ class SharpFocusCodeVisionProvider : CodeVisionProvider<Unit> {
         val focusedSymbol = response.focusedPlace.name
         val processedLines = mutableSetOf<Int>()
 
-        // Process backward slice (influenced by)
+        // Process backward slice (what influences the seed)
         response.backwardSlice?.sliceRangeDetails?.forEach { detail ->
             val line = detail.place.range.start.line
             if (line !in processedLines && line != range.start.line) {
@@ -117,18 +117,18 @@ class SharpFocusCodeVisionProvider : CodeVisionProvider<Unit> {
                 val detailEndOffset = getOffset(editor, detail.place.range.end.line, detail.place.range.end.character)
 
                 if (detailStartOffset >= 0 && detailEndOffset >= 0 && detailStartOffset < detailEndOffset) {
-                    val text = "influenced by $focusedSymbol"
+                    val text = "influences $focusedSymbol"
                     val entry: CodeVisionEntry = TextCodeVisionEntry(
                         text,
                         ID,
-                        tooltip = "This code is influenced by $focusedSymbol"
+                        tooltip = "This code influences $focusedSymbol"
                     )
                     entries.add(Pair(TextRange(detailStartOffset, detailEndOffset), entry))
                 }
             }
         }
 
-        // Process forward slice (influences)
+        // Process forward slice (what is influenced by the seed)
         response.forwardSlice?.sliceRangeDetails?.forEach { detail ->
             val line = detail.place.range.start.line
             if (line !in processedLines && line != range.start.line) {
@@ -138,7 +138,7 @@ class SharpFocusCodeVisionProvider : CodeVisionProvider<Unit> {
                 val detailEndOffset = getOffset(editor, detail.place.range.end.line, detail.place.range.end.character)
 
                 if (detailStartOffset >= 0 && detailEndOffset >= 0 && detailStartOffset < detailEndOffset) {
-                    val text = "influences $focusedSymbol"
+                    val text = "influenced by $focusedSymbol"
                     val entry: CodeVisionEntry = TextCodeVisionEntry(
                         text,
                         ID,
@@ -166,27 +166,15 @@ class SharpFocusCodeVisionProvider : CodeVisionProvider<Unit> {
     }
 
     private fun countRelations(response: FocusModeResponse): Triple<Int, Int, Int> {
-        var sources = 0
-        var transforms = 0
-        var sinks = 0
+        val backwardCount = response.backwardSlice?.sliceRangeDetails?.size ?: 0
+        val forwardCount = response.forwardSlice?.sliceRangeDetails?.size ?: 0
 
-        response.backwardSlice?.sliceRangeDetails?.forEach { detail ->
-            when (detail.relation) {
-                SliceRelation.SOURCE -> sources++
-                SliceRelation.TRANSFORM -> transforms++
-                SliceRelation.SINK -> sinks++
-            }
-        }
+        // Count transforms (items that appear in both slices)
+        val backwardLines = response.backwardSlice?.sliceRangeDetails?.map { it.place.range.start.line }?.toSet() ?: emptySet()
+        val forwardLines = response.forwardSlice?.sliceRangeDetails?.map { it.place.range.start.line }?.toSet() ?: emptySet()
+        val transformCount = backwardLines.intersect(forwardLines).size
 
-        response.forwardSlice?.sliceRangeDetails?.forEach { detail ->
-            when (detail.relation) {
-                SliceRelation.SOURCE -> sources++
-                SliceRelation.TRANSFORM -> transforms++
-                SliceRelation.SINK -> sinks++
-            }
-        }
-
-        return Triple(sources, transforms, sinks)
+        return Triple(backwardCount, forwardCount, transformCount)
     }
 
     private fun generateCodeVisionText(
@@ -202,7 +190,7 @@ class SharpFocusCodeVisionProvider : CodeVisionProvider<Unit> {
         }
 
         if (sourceCount > 0 && sinkCount == 0 && transformCount == 0) {
-            return "$symbolName · influenced by $sourceCount · not used (warning)"
+            return "$symbolName · influenced by $sourceCount · not used"
         }
 
         if (sourceCount == 0 && sinkCount > 0 && transformCount == 0) {
@@ -237,13 +225,13 @@ class SharpFocusCodeVisionProvider : CodeVisionProvider<Unit> {
         val parts = mutableListOf("Data flow for '$symbolName'")
 
         if (sourceCount > 0) {
-            parts.add("• $sourceCount ${pluralize("source", sourceCount)} (what influences it)")
+            parts.add("• $sourceCount ${pluralize("location", sourceCount)} (what influences it)")
         }
         if (transformCount > 0) {
             parts.add("• $transformCount ${pluralize("transform", transformCount)}")
         }
         if (sinkCount > 0) {
-            parts.add("• $sinkCount ${pluralize("destination", sinkCount)} (what it influences)")
+            parts.add("• $sinkCount ${pluralize("location", sinkCount)} (what it influences)")
         }
 
         if (sourceCount == 0 && sinkCount == 0 && transformCount == 0) {
