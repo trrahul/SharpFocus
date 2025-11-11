@@ -1,5 +1,6 @@
 package com.jetbrains.rider.plugins.sharpfocus.settings
 
+import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.project.Project
@@ -91,12 +92,13 @@ class SharpFocusConfigurable(private val project: Project) : Configurable {
         // Server Path
         serverPathField = TextFieldWithBrowseButton().apply {
             text = settings.serverPath
-            addBrowseFolderListener(
-                "Select SharpFocus Language Server DLL",
-                "Choose the SharpFocus.LanguageServer.dll file",
-                project,
-                FileChooserDescriptorFactory.createSingleFileDescriptor("dll")
-            )
+            addActionListener {
+                val descriptor = FileChooserDescriptorFactory.createSingleFileDescriptor("dll")
+                val file = FileChooser.chooseFile(descriptor, project, null)
+                file?.let {
+                    this.text = it.path
+                }
+            }
         }
 
         val serverPathLabel = JBLabel("Language Server Path:")

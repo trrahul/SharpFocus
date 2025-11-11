@@ -115,14 +115,35 @@ try {
         Write-Host "   ✓ plugin.xml" -ForegroundColor Green
     }
 
-    # Check for server binaries
-    $serverPlatforms = @("win-x64", "linux-x64", "osx-x64", "osx-arm64", "win-arm64", "linux-arm64")
+    # Check for server binaries (they're inside the plugin JAR)
+    $serverPlatforms = @("win-x64", "linux-x64", "osx-x64", "osx-arm64")
     $foundPlatforms = @()
 
-    foreach ($platform in $serverPlatforms) {
-        $serverBinary = $zip.Entries | Where-Object { $_.FullName -like "*server/$platform/*" }
-        if ($serverBinary) {
-            $foundPlatforms += $platform
+    # Find the main plugin JAR
+    $pluginJar = $zip.Entries | Where-Object { $_.FullName -like "*/lib/*sharpfocus*.jar" -and $_.FullName -notlike "*-searchableOptions.jar" } | Select-Object -First 1
+
+    if ($pluginJar) {
+        # Extract the JAR to temp and check inside it
+        $tempJar = [System.IO.Path]::GetTempFileName()
+        try {
+            $stream = $pluginJar.Open()
+            $fileStream = [System.IO.File]::OpenWrite($tempJar)
+            $stream.CopyTo($fileStream)
+            $fileStream.Close()
+            $stream.Close()
+
+            $jar = [System.IO.Compression.ZipFile]::OpenRead($tempJar)
+            foreach ($platform in $serverPlatforms) {
+                $serverBinary = $jar.Entries | Where-Object { $_.FullName -like "server/$platform/*LanguageServer*" -and $_.Length -gt 1MB }
+                if ($serverBinary) {
+                    $foundPlatforms += $platform
+                }
+            }
+            $jar.Dispose()
+        } finally {
+            if (Test-Path $tempJar) {
+                Remove-Item $tempJar -Force -ErrorAction SilentlyContinue
+            }
         }
     }
 

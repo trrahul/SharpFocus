@@ -18,8 +18,6 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Manages the lifecycle of the SharpFocus Language Server.
- * Launches the existing SharpFocus.LanguageServer.dll via dotnet and
- * communicates using the Language Server Protocol.
  */
 @Service(Service.Level.PROJECT)
 class SharpFocusLanguageServerManager(private val project: Project) : Disposable {
@@ -43,8 +41,8 @@ class SharpFocusLanguageServerManager(private val project: Project) : Disposable
             return project.getService(SharpFocusLanguageServerManager::class.java)
         }
 
-        private const val SERVER_DLL_NAME = "SharpFocus.LanguageServer.dll"
         private const val SERVER_EXE_NAME = "SharpFocus.LanguageServer.exe"
+        private const val SERVER_BINARY_NAME = "SharpFocus.LanguageServer"
     }
 
     /**
@@ -73,27 +71,16 @@ class SharpFocusLanguageServerManager(private val project: Project) : Disposable
 
                 logger.info("Starting language server at: $serverPath")
 
-                // Determine if we should use exe or dll
-                // With self-contained single-file, we prefer the .exe on Windows
-                val command = if (serverPath.endsWith(".exe")) {
-                    listOf(serverPath)
-                } else {
-                    listOf("dotnet", serverPath)
-                }
-
-                // Launch the language server process
+                val command = listOf(serverPath)
                 val processBuilder = ProcessBuilder(command)
                 processBuilder.redirectErrorStream(false)
 
                 process = processBuilder.start()
 
-                // Log process output for debugging
                 startProcessOutputLogger(process!!)
 
-                // Create LSP launcher with custom server interface using Builder
                 val client = SharpFocusLanguageClient()
 
-                // Use the Launcher.Builder to create a launcher with custom server interface
                 @Suppress("UNCHECKED_CAST")
                 launcher = org.eclipse.lsp4j.jsonrpc.Launcher.createLauncher(
                     client,
@@ -104,13 +91,18 @@ class SharpFocusLanguageServerManager(private val project: Project) : Disposable
 
                 languageServer = launcher!!.remoteProxy
 
-                // Start listening
                 launcher!!.startListening()
 
-                // Initialize the server
                 val initParams = InitializeParams().apply {
                     processId = ProcessHandle.current().pid().toInt()
-                    rootUri = project.basePath?.let { "file://$it" }
+                    project.basePath?.let { basePath ->
+                        workspaceFolders = listOf(
+                            WorkspaceFolder().apply {
+                                uri = "file://$basePath"
+                                name = project.name
+                            }
+                        )
+                    }
                     capabilities = ClientCapabilities().apply {
                         textDocument = TextDocumentClientCapabilities()
                         workspace = WorkspaceClientCapabilities().apply {
@@ -323,77 +315,69 @@ class SharpFocusLanguageServerManager(private val project: Project) : Disposable
             start()
         }
 
-        // Also capture stdout for diagnostics (separate from LSP communication)
-        // Note: We read from inputStream for LSP, but we can peek at it before that
         logger.info("Language server process started (PID: ${process.pid()})")
     }
 
-    /**
-     * Extracts the bundled language server from plugin resources to a temporary directory.
-     * The server is bundled as a self-contained single-file executable, so we only need
-     * to extract the main executable (.exe on Windows, .dll on other platforms).
-     *
-     * @param platform The target platform (e.g., "win-x64", "linux-x64")
-     * @return Path to the extracted executable, or null if extraction failed
-     */
     private fun extractBundledServer(platform: String): String? {
         try {
-            // Create temp directory for this extraction
             val tmpDir = Files.createTempDirectory("sharpfocus-server-$platform")
             logger.info("Created extraction directory: $tmpDir")
 
-            // Determine which file to extract based on platform
-            // With self-contained single-file publishing:
-            // - Windows: SharpFocus.LanguageServer.exe (standalone executable)
-            // - Linux/Mac: SharpFocus.LanguageServer (executable) or .dll
             val executableName = when {
                 platform.contains("win") -> SERVER_EXE_NAME
-                else -> SERVER_DLL_NAME  // On Unix, the self-contained binary might still be .dll
+                else -> SERVER_BINARY_NAME
             }
 
             val resourcePath = "/server/$platform/$executableName"
             logger.info("Looking for bundled server at: $resourcePath")
 
-            // Try to extract the main executable from resources
+            try {
+                val classLoader = this::class.java.classLoader
+                val serverDirPath = "server/$platform"
+                val serverDirUrl = classLoader.getResource(serverDirPath)
+                if (serverDirUrl != null) {
+                    logger.info("Server directory found at: $serverDirUrl")
+                    if (serverDirUrl.protocol == "jar") {
+                        val jarPath = serverDirUrl.path.substringBefore("!")
+                        logger.info("JAR path: $jarPath")
+                        try {
+                            val jarFile = java.util.jar.JarFile(jarPath.removePrefix("file:"))
+                            val entries = jarFile.entries().asSequence()
+                                .filter { it.name.startsWith("server/$platform/") && !it.isDirectory }
+                                .map { it.name }
+                                .toList()
+                            logger.info("Files in server/$platform/: ${entries.joinToString(", ")}")
+                            jarFile.close()
+                        } catch (e: Exception) {
+                            logger.warn("Could not list JAR contents: ${e.message}")
+                        }
+                    }
+                } else {
+                    logger.warn("Server directory not found: $serverDirPath")
+                }
+            } catch (e: Exception) {
+                logger.warn("Error inspecting server directory: ${e.message}")
+            }
+
             val classLoader = this::class.java.classLoader
             val stream = classLoader.getResourceAsStream("server/$platform/$executableName")
+                ?: this::class.java.getResourceAsStream(resourcePath)
 
             if (stream == null) {
                 logger.warn("Bundled server not found at: $resourcePath")
-                // Try alternate name for Unix platforms
-                if (!platform.contains("win")) {
-                    val altStream = classLoader.getResourceAsStream("server/$platform/$SERVER_EXE_NAME")
-                    if (altStream != null) {
-                        logger.info("Found alternate server executable")
-                        val target = tmpDir.resolve(SERVER_EXE_NAME)
-                        Files.copy(altStream, target, StandardCopyOption.REPLACE_EXISTING)
-                        altStream.close()
-
-                        // Make executable on Unix
-                        if (!platform.contains("win")) {
-                            target.toFile().setExecutable(true)
-                        }
-
-                        logger.info("Extracted bundled server to: $target")
-                        return target.toAbsolutePath().toString()
-                    }
-                }
                 return null
             }
 
-            // Extract the executable
             val target = tmpDir.resolve(executableName)
             Files.copy(stream, target, StandardCopyOption.REPLACE_EXISTING)
             stream.close()
 
-            // Make executable on Unix platforms
             if (!platform.contains("win")) {
                 target.toFile().setExecutable(true)
             }
 
             logger.info("Extracted bundled server to: $target")
 
-            // Verify the file exists and has content
             if (!Files.exists(target) || Files.size(target) == 0L) {
                 logger.error("Extracted file is empty or doesn't exist: $target")
                 return null
@@ -410,88 +394,6 @@ class SharpFocusLanguageServerManager(private val project: Project) : Disposable
         }
     }
 
-    /**
-     * Recursively extracts files from a directory path to a target directory.
-     * @deprecated No longer needed with single-file publishing
-     */
-    @Deprecated("Single-file publishing no longer requires directory extraction")
-    private fun extractDirectory(
-        sourcePath: java.nio.file.Path,
-        targetDir: java.nio.file.Path,
-        classLoader: ClassLoader,
-        platform: String
-    ): Int {
-        var count = 0
-
-        try {
-            Files.walk(sourcePath).use { paths ->
-                paths.forEach { source ->
-                    if (Files.isRegularFile(source)) {
-                        val relativePath = sourcePath.relativize(source)
-                        val target = targetDir.resolve(relativePath.toString())
-
-                        // Create parent directories if needed
-                        Files.createDirectories(target.parent)
-
-                        // Copy file
-                        Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING)
-                        count++
-
-                        if (count <= 5) {
-                            logger.info("  Extracted: ${relativePath.fileName}")
-                        }
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            logger.warn("Error walking directory tree: ${e.message}")
-
-            // Fallback: try to extract known files from resources using classLoader
-            val knownFiles = listOf(
-                SERVER_DLL_NAME,
-                "SharpFocus.Core.dll",
-                "SharpFocus.Analysis.dll",
-                "Microsoft.CodeAnalysis.dll",
-                "Microsoft.CodeAnalysis.CSharp.dll",
-                "Microsoft.CodeAnalysis.CSharp.Workspaces.dll",
-                "Microsoft.CodeAnalysis.Workspaces.dll",
-                "OmniSharp.Extensions.LanguageServer.dll",
-                "OmniSharp.Extensions.JsonRpc.dll",
-                "OmniSharp.Extensions.LanguageProtocol.dll",
-                "Newtonsoft.Json.dll",
-                "MediatR.dll",
-                "System.Reactive.dll",
-                "SharpFocus.LanguageServer.exe",
-                "SharpFocus.LanguageServer.deps.json",
-                "SharpFocus.LanguageServer.runtimeconfig.json"
-            )
-
-            for (fileName in knownFiles) {
-                try {
-                    val resourcePath = "server/$platform/$fileName"
-                    val stream = classLoader.getResourceAsStream(resourcePath)
-                    if (stream != null) {
-                        val target = targetDir.resolve(fileName)
-                        Files.copy(stream, target, StandardCopyOption.REPLACE_EXISTING)
-                        stream.close()
-                        count++
-                        if (count <= 5) {
-                            logger.info("  Extracted: $fileName")
-                        }
-                    }
-                } catch (ex: Exception) {
-                    // File might not exist, continue
-                }
-            }
-        }
-
-        if (count > 5) {
-            logger.info("  ... and ${count - 5} more files")
-        }
-
-        return count
-    }
-
     private fun cleanup() {
         isRunning = false
         languageServer = null
@@ -499,17 +401,7 @@ class SharpFocusLanguageServerManager(private val project: Project) : Disposable
         process = null
     }
 
-    /**
-     * Finds the language server DLL path.
-     * Searches in multiple locations:
-     * 1. Custom path from settings
-     * 2. Plugin bundle (for production use)
-     * 3. Development paths (for local development)
-     */
     private fun findServerPath(): String? {
-        val possiblePaths = mutableListOf<String>()
-
-        // 0. Check settings for custom path
         val settings = com.jetbrains.rider.plugins.sharpfocus.settings.SharpFocusSettings.getInstance(project)
         if (settings.serverPath.isNotEmpty()) {
             val customPath = settings.serverPath
@@ -521,53 +413,37 @@ class SharpFocusLanguageServerManager(private val project: Project) : Disposable
             }
         }
 
-        // 1. Look in plugin directory (production)
-        val pluginPath = System.getProperty("idea.plugins.path")
-        if (pluginPath != null) {
-            possiblePaths.add(Paths.get(pluginPath, "SharpFocus", "server", SERVER_DLL_NAME).toString())
+        val os = System.getProperty("os.name").lowercase()
+        val arch = System.getProperty("os.arch").lowercase()
+        val platform = when {
+            os.contains("win") -> "win-x64"
+            os.contains("mac") || os.contains("darwin") -> if (arch.contains("aarch64") || arch.contains("arm")) "osx-arm64" else "osx-x64"
+            else -> "linux-x64"
         }
+        val executableName = if (os.contains("win")) SERVER_EXE_NAME else SERVER_BINARY_NAME
 
-        // 2. Look relative to project root (development)
         project.basePath?.let { basePath ->
-            // Try both net10.0 and net8.0 for compatibility
-            possiblePaths.add(Paths.get(basePath, "src", "SharpFocus.LanguageServer", "bin", "Release", "net10.0", SERVER_DLL_NAME).toString())
-            possiblePaths.add(Paths.get(basePath, "src", "SharpFocus.LanguageServer", "bin", "Debug", "net10.0", SERVER_DLL_NAME).toString())
-            possiblePaths.add(Paths.get(basePath, "src", "SharpFocus.LanguageServer", "bin", "Release", "net8.0", SERVER_DLL_NAME).toString())
-            possiblePaths.add(Paths.get(basePath, "src", "SharpFocus.LanguageServer", "bin", "Debug", "net8.0", SERVER_DLL_NAME).toString())
+            val devResourcePath = Paths.get(basePath, "src", "rider", "main", "resources", "server", platform, executableName).toString()
+            logger.info("Checking development resources: $devResourcePath")
+            if (File(devResourcePath).exists()) {
+                logger.info("Found language server in development resources: $devResourcePath")
+                return devResourcePath
+            }
 
-            // Look in parent directory (if Rider opened rider-plugin folder)
             val parentPath = File(basePath).parent
             if (parentPath != null) {
-                possiblePaths.add(Paths.get(parentPath, "src", "SharpFocus.LanguageServer", "bin", "Release", "net10.0", SERVER_DLL_NAME).toString())
-                possiblePaths.add(Paths.get(parentPath, "src", "SharpFocus.LanguageServer", "bin", "Debug", "net10.0", SERVER_DLL_NAME).toString())
-                possiblePaths.add(Paths.get(parentPath, "src", "SharpFocus.LanguageServer", "bin", "Release", "net8.0", SERVER_DLL_NAME).toString())
-                possiblePaths.add(Paths.get(parentPath, "src", "SharpFocus.LanguageServer", "bin", "Debug", "net8.0", SERVER_DLL_NAME).toString())
+                val parentResourcePath = Paths.get(parentPath, "rider-plugin", "src", "rider", "main", "resources", "server", platform, executableName).toString()
+                logger.info("Checking parent development resources: $parentResourcePath")
+                if (File(parentResourcePath).exists()) {
+                    logger.info("Found language server in parent development resources: $parentResourcePath")
+                    return parentResourcePath
+                }
             }
         }
 
-        logger.info("Searching for language server in:")
-        for (path in possiblePaths) {
-            logger.info("  - $path")
-            if (File(path).exists()) {
-                logger.info("Found language server at: $path")
-                return path
-            }
-        }
-
-        // If we didn't find a filesystem copy, try to load the bundled server from plugin resources.
-        // The server is published as a self-contained single-file executable bundled in plugin resources.
         try {
-            val os = System.getProperty("os.name").lowercase()
-            val arch = System.getProperty("os.arch").lowercase()
-            val platform = when {
-                os.contains("win") -> "win-x64"
-                os.contains("mac") || os.contains("darwin") -> if (arch.contains("aarch64") || arch.contains("arm")) "osx-arm64" else "osx-x64"
-                else -> "linux-x64"
-            }
-
             logger.info("Looking for bundled language server for platform: $platform")
 
-            // Extract the self-contained executable from resources
             val extractedPath = extractBundledServer(platform)
             if (extractedPath != null) {
                 logger.info("Successfully extracted bundled language server to: $extractedPath")
