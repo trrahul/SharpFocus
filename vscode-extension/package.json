@@ -2,7 +2,7 @@
   "name": "sharpfocus",
   "displayName": "SharpFocus",
   "description": "Information Flow Analysis for C# — See what your code really does with intelligent dataflow highlighting",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "publisher": "RahulTR",
   "license": "MIT",
   "icon": "icon.png",
@@ -160,10 +160,15 @@
           ],
           "default": "normal",
           "enumDescriptions": [
-            "Normal: Flowistry-style fading with minimal highlights",
+            "Normal: Fading with minimal highlights",
             "Advanced: Colored relations, gutter icons, and detailed styling"
           ],
           "description": "Choose how SharpFocus renders focus mode results in the editor."
+        },
+        "sharpfocus.showPerLineCodeLens": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show 'influences' or 'influenced by' CodeLens hints on each line."
         }
       }
     }

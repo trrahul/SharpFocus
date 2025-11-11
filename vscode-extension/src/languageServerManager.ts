@@ -27,18 +27,32 @@ export class LanguageServerManager {
       `SharpFocus: Starting language server...`
     );
 
-    const serverOptions: ServerOptions = {
-      run: {
-        command: "dotnet",
-        args: [serverPath],
-        transport: TransportKind.stdio,
-      },
-      debug: {
-        command: "dotnet",
-        args: [serverPath],
-        transport: TransportKind.stdio,
-      },
-    };
+    // Determine if we need to use dotnet or run the executable directly
+    const isExecutable = serverPath.endsWith(".exe") || !serverPath.endsWith(".dll");
+
+    const serverOptions: ServerOptions = isExecutable
+      ? {
+          run: {
+            command: serverPath,
+            transport: TransportKind.stdio,
+          },
+          debug: {
+            command: serverPath,
+            transport: TransportKind.stdio,
+          },
+        }
+      : {
+          run: {
+            command: "dotnet",
+            args: [serverPath],
+            transport: TransportKind.stdio,
+          },
+          debug: {
+            command: "dotnet",
+            args: [serverPath],
+            transport: TransportKind.stdio,
+          },
+        };
 
     const clientOptions: LanguageClientOptions = {
       documentSelector: [{ scheme: "file", language: "csharp" }],
@@ -103,17 +117,29 @@ export class LanguageServerManager {
     const platform = process.platform;
     const arch = process.arch;
     let runtimeFolder = "";
+    let serverFileName = "";
 
     if (platform === "win32") {
       runtimeFolder = arch === "arm64" ? "win-arm64" : "win-x64";
+      serverFileName = "SharpFocus.LanguageServer.exe";
     } else if (platform === "darwin") {
       runtimeFolder = arch === "arm64" ? "osx-arm64" : "osx-x64";
+      serverFileName = "SharpFocus.LanguageServer";
     } else if (platform === "linux") {
       runtimeFolder = arch === "arm64" ? "linux-arm64" : "linux-x64";
+      serverFileName = "SharpFocus.LanguageServer";
     }
 
     const paths: string[] = [];
 
+    // Check bundled server first (for packaged extension)
+    if (extensionPath && runtimeFolder && serverFileName) {
+      paths.push(
+        path.join(extensionPath, "server", runtimeFolder, serverFileName)
+      );
+    }
+
+    // Also check for .dll for development scenario
     if (extensionPath && runtimeFolder) {
       paths.push(
         path.join(extensionPath, "server", runtimeFolder, "SharpFocus.LanguageServer.dll")

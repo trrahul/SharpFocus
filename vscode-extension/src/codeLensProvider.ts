@@ -1,5 +1,4 @@
 import * as vscode from "vscode";
-import { normalizeSliceRelation } from "./relationUtils";
 import { FocusModeResponse } from "./types";
 
 interface AnalysisState {
@@ -57,7 +56,9 @@ export class SharpFocusCodeLensProvider implements vscode.CodeLensProvider {
     if (focusMode) {
       const seedRange = this.toVsRange(focusMode.focusedPlace.range);
       const symbolName = focusMode.focusedPlace.name;
+      const seedLine = focusMode.focusedPlace.range.start.line;
 
+      // Add CodeLens for the seed (always shown)
       const counts = this.countRelations(focusMode);
       const sourceCount = counts.sources;
       const sinkCount = counts.sinks;
@@ -82,6 +83,61 @@ export class SharpFocusCodeLensProvider implements vscode.CodeLensProvider {
           arguments: [document.uri.toString(), focusMode],
         })
       );
+
+      // Check if per-line CodeLens is enabled
+      const config = vscode.workspace.getConfiguration("sharpfocus");
+      const showPerLineCodeLens = config.get<boolean>("showPerLineCodeLens", false);
+
+      if (showPerLineCodeLens) {
+        // Add CodeLens for each line in the slices
+        const processedLines = new Set<number>();
+
+        // Process backward slice (what influences the seed)
+        if (focusMode.backwardSlice?.sliceRangeDetails) {
+          for (const detail of focusMode.backwardSlice.sliceRangeDetails) {
+            const line = detail.place.range.start.line;
+
+            // Skip seed line and already processed lines
+            if (line === seedLine || processedLines.has(line)) {
+              continue;
+            }
+
+            processedLines.add(line);
+            const detailRange = this.toVsRange(detail.place.range);
+
+            lenses.push(
+              new vscode.CodeLens(detailRange, {
+                title: `influences`,
+                tooltip: `This code influences ${symbolName}`,
+                command: "",
+              })
+            );
+          }
+        }
+
+        // Process forward slice (what is influenced by the seed)
+        if (focusMode.forwardSlice?.sliceRangeDetails) {
+          for (const detail of focusMode.forwardSlice.sliceRangeDetails) {
+            const line = detail.place.range.start.line;
+
+            // Skip seed line and already processed lines
+            if (line === seedLine || processedLines.has(line)) {
+              continue;
+            }
+
+            processedLines.add(line);
+            const detailRange = this.toVsRange(detail.place.range);
+
+            lenses.push(
+              new vscode.CodeLens(detailRange, {
+                title: `influenced by`,
+                tooltip: `${symbolName} influences this code`,
+                command: "",
+              })
+            );
+          }
+        }
+      }
     }
 
     return lenses;
@@ -102,29 +158,27 @@ export class SharpFocusCodeLensProvider implements vscode.CodeLensProvider {
     transforms: number;
     sinks: number;
   } {
-    let sources = 0;
-    let transforms = 0;
-    let sinks = 0;
+    // Count slice sizes directly instead of counting relation types
+    const backwardCount = response.backwardSlice?.sliceRangeDetails?.length ?? 0;
+    const forwardCount = response.forwardSlice?.sliceRangeDetails?.length ?? 0;
 
-    if (response.backwardSlice?.sliceRangeDetails) {
-      for (const detail of response.backwardSlice.sliceRangeDetails) {
-        const relation = normalizeSliceRelation(detail.relation);
-        if (relation === "Source") sources++;
-        else if (relation === "Transform") transforms++;
-        else if (relation === "Sink") sinks++;
-      }
-    }
+    // Count transforms (items that appear in both slices)
+    const backwardLines = new Set(
+      response.backwardSlice?.sliceRangeDetails?.map(d => d.place.range.start.line) ?? []
+    );
+    const forwardLines = new Set(
+      response.forwardSlice?.sliceRangeDetails?.map(d => d.place.range.start.line) ?? []
+    );
+    const transformCount = [...backwardLines].filter(line => forwardLines.has(line)).length;
 
-    if (response.forwardSlice?.sliceRangeDetails) {
-      for (const detail of response.forwardSlice.sliceRangeDetails) {
-        const relation = normalizeSliceRelation(detail.relation);
-        if (relation === "Source") sources++;
-        else if (relation === "Transform") transforms++;
-        else if (relation === "Sink") sinks++;
-      }
-    }
-
-    return { sources, transforms, sinks };
+    // Return: sources = backward count (what influences seed)
+    //         sinks = forward count (what seed influences)
+    //         transforms = intersection count
+    return {
+      sources: backwardCount,
+      sinks: forwardCount,
+      transforms: transformCount
+    };
   }
 
   private generateCodeLensText(
@@ -140,20 +194,32 @@ export class SharpFocusCodeLensProvider implements vscode.CodeLensProvider {
     }
 
     if (sourceCount > 0 && sinkCount === 0 && transformCount === 0) {
-      return `${symbolName} · influenced by ${sourceCount} · not used (warning)`;
+      return `${symbolName} · influenced by ${sourceCount} · not used`;
     }
 
-    if (sourceCount === 0 && sinkCount > 0) {
+    if (sourceCount === 0 && sinkCount > 0 && transformCount === 0) {
       return `${symbolName} · influences ${sinkCount} ${this.pluralize(
         "location",
         sinkCount
       )}`;
     }
 
-    const sourceText = sourceCount > 0 ? `influenced by ${sourceCount}` : null;
-    const sinkText = sinkCount > 0 ? `influences ${sinkCount}` : null;
+    if (sourceCount === 0 && sinkCount === 0 && transformCount > 0) {
+      return `${symbolName} · ${transformCount} ${this.pluralize(
+        "transform",
+        transformCount
+      )}`;
+    }
 
-    const parts = [sourceText, sinkText].filter((p) => p !== null);
+    const parts: string[] = [];
+    if (sourceCount > 0) {
+      parts.push(`influenced by ${sourceCount}`);
+    }
+    if (sinkCount > 0) {
+      parts.push(`influences ${sinkCount}`);
+    }
+    // Don't show transform count in main text when sources/sinks are present
+    // It will appear in the tooltip
 
     return `${symbolName} · ${parts.join(" · ")}  [Show Flow]`;
   }
